@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบแยกข้อมูลรายการผ่านทาง - Modern Version</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            min-height: 100vh;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+        }
+        .table-container {
+            overflow-x: auto;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.875rem;
+            background: white;
+        }
+        th {
+            background-color: #1e293b;
+            color: #f8fafc;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            padding: 12px 16px;
+            text-align: left;
+        }
+        td {
+            border-bottom: 1px solid #f1f5f9;
+            padding: 12px 16px;
+            color: #334155;
+            white-space: nowrap;
+        }
+        tr:last-child td {
+            border-bottom: none;
+        }
+        tr:hover {
+            background-color: #f8fafc;
+        }
+        textarea {
+            resize: none;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 transparent;
+        }
+        textarea::-webkit-scrollbar {
+            width: 6px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background-color: #cbd5e1;
+            border-radius: 10px;
+        }
+        .btn-gradient-blue {
+            background: linear-gradient(to right, #2563eb, #3b82f6);
+        }
+        .btn-gradient-emerald {
+            background: linear-gradient(to right, #059669, #10b981);
+        }
+        select {
+            background: transparent;
+            border: 1px solid #e2e8f0;
+            border-radius: 4px;
+            padding: 2px 4px;
+            outline: none;
+            cursor: pointer;
+        }
+        select:focus {
+            border-color: #3b82f6;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <header class="mb-10 text-center">
+            <h1 class="text-3xl font-extrabold text-slate-800 tracking-tight mb-2">
+                <span class="text-blue-600">Parser</span> Tool Pro
+            </h1>
+            <p class="text-slate-500 font-medium">ระบบคัดแยกและผสานข้อมูลรายการผ่านทางอัจฉริยะ</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+            <div class="glass-card rounded-2xl shadow-xl p-6 transition-all hover:shadow-2xl">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V7a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <label class="text-lg font-bold text-slate-700">ข้อมูลหลัก</label>
+                </div>
+                <textarea 
+                    id="inputData" 
+                    oninput="formatSpaces(this)"
+                    onblur="formatSpaces(this)"
+                    class="w-full h-56 p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-600"
+                    placeholder="วางข้อมูลรายการหลักที่นี่..."
+                ></textarea>
+                <p class="mt-2 text-xs text-slate-400 italic">* ลบ " และปรับเว้นวรรคให้อัตโนมัติ</p>
+            </div>
+
+            <div class="glass-card rounded-2xl shadow-xl p-6 transition-all hover:shadow-2xl">
+                <div class="flex items-center gap-2 mb-4">
+                    <div class="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                    </div>
+                    <label class="text-lg font-bold text-slate-700">ข้อมูลเพิ่มเติม</label>
+                </div>
+                <textarea 
+                    id="extraData" 
+                    oninput="formatSpaces(this)"
+                    onblur="formatSpaces(this)"
+                    class="w-full h-56 p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-slate-600"
+                    placeholder="วางข้อมูลเพื่อใช้ค้นหาทะเบียน..."
+                ></textarea>
+                <p class="mt-2 text-xs text-slate-400 italic">* ใช้ผสานวันเวลาและด่านตามเลขทะเบียน</p>
+            </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-center gap-4 mb-10">
+            <button 
+                onclick="processData()"
+                class="btn-gradient-blue hover:opacity-90 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg hover:-translate-y-1 flex items-center gap-2"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                ประมวลผลข้อมูล
+            </button>
+            <button 
+                onclick="mergeExtraDataByPlate()"
+                class="btn-gradient-emerald hover:opacity-90 text-white px-8 py-3 rounded-xl font-bold transition-all shadow-lg hover:-translate-y-1 flex items-center gap-2"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+                ผสานข้อมูล
+            </button>
+            <button 
+                onclick="clearAll()"
+                class="bg-white hover:bg-slate-100 text-slate-600 border border-slate-200 px-8 py-3 rounded-xl font-bold transition-all shadow-sm"
+            >
+                ล้างทั้งหมด
+            </button>
+        </div>
+
+        <div id="resultArea" class="glass-card rounded-2xl shadow-2xl p-6 hidden animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                    <span class="w-2 h-8 bg-blue-600 rounded-full"></span>
+                    ผลลัพธ์การคัดแยกข้อมูล
+                </h2>
+                <button 
+                    onclick="copyTableDataOnly()"
+                    class="bg-slate-800 hover:bg-slate-900 text-white px-5 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m-1 4h.01M9 16h.01" />
+                    </svg>
+                    คัดลอกข้อมูลตาราง
+                </button>
+            </div>
+            
+            <div class="table-container border border-slate-100">
+                <table id="resultTable">
+                    <thead>
+                        <tr>
+                            <th>ทะเบียนรถที่สร้าง</th>
+                            <th>ประเภทรถ ที่สร้าง TXN</th>
+                            <th>ด่าน</th>
+                            <th>วันเวลาผ่านด่าน</th>
+                            <th>ของเดือน</th>
+                            <th>ทะเบียนอ่านได้/ผิด</th>
+                            <th>ประเภทรถ</th>
+                            <th>Ref</th>
+                            <th>สาเหตุ</th>
+                            <th>Action</th>
+                            <th>ภาพ</th>
+                            <th>Agent</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const monthNames = [
+            "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+            "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"
+        ];
+
+        const carTypeOptions = `
+            <option value="ตรวจสอบรายการผ่านทาง">ตรวจสอบรายการผ่านทาง</option>
+            <option value="ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ">ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ</option>
+        `;
+
+        function formatSpaces(element) {
+            const lines = element.value.split('\n');
+            const formattedLines = lines.map(line => {
+                return line.replace(/"/g, '').replace(/\s+/g, ' ').trim();
+            });
+            
+            const start = element.selectionStart;
+            const oldValue = element.value;
+            const newValue = formattedLines.join('\n');
+            
+            if (oldValue !== newValue) {
+                element.value = newValue;
+                element.selectionStart = element.selectionEnd = start;
+            }
+        }
+
+        function extractDateTime(text) {
+            const datePattern = /(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\s+(\d{1,2}:\d{1,2}(:\d{1,2})?)/;
+            const match = text.match(datePattern);
+            return match ? match[0] : null;
+        }
+
+        function extractStationCode(text) {
+            if (text.includes("ธัญบุรี 1")) return "TY1";
+            if (text.includes("ธัญบุรี 2")) return "TY2";
+            if (text.includes("ทับช้าง 1")) return "TC1";
+            if (text.includes("ทับช้าง 2")) return "TC2";
+            return null;
+        }
+
+        function processData() {
+            const input = document.getElementById('inputData').value;
+            if (!input.trim()) return;
+
+            const rows = input.split('\n').filter(row => row.trim() !== '');
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+
+            rows.forEach(row => {
+                const data = parseRow(row);
+                const tr = document.createElement('tr');
+                
+                tr.innerHTML = `
+                    <td class="font-bold text-blue-700">${data.lastPlate}</td>
+                    <td>
+                        <select class="car-type-txn-select">
+                            ${carTypeOptions}
+                        </select>
+                    </td>
+                    <td class="col-station font-semibold">${data.station}</td>
+                    <td class="col-dateTime text-slate-500">${data.dateTime}</td>
+                    <td class="col-month text-slate-400">${data.monthText}</td>
+                    <td class="col-firstPlate font-medium">${data.firstPlate}</td>
+                    <td>
+                        <select class="car-type-select">
+                            ${carTypeOptions}
+                        </select>
+                    </td>
+                    <td></td>
+                    <td class="text-slate-600">เจ้าหน้าที่อนุมัติรายการผ่านทางผิดพลาด</td>
+                    <td class="text-slate-600">สร้างTXN+ยิงpostman</td>
+                    <td></td>
+                    <td class="text-xs text-slate-400">บี Asst.</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            document.getElementById('resultArea').classList.remove('hidden');
+        }
+
+        function mergeExtraDataByPlate() {
+            const extraInput = document.getElementById('extraData').value;
+            if (!extraInput.trim()) return;
+
+            const extraLines = extraInput.split('\n').filter(line => line.trim() !== '');
+            const tableRows = document.querySelectorAll('#tableBody tr');
+
+            if (tableRows.length === 0) {
+                showToast('กรุณาประมวลผลข้อมูลหลักก่อน', 'error');
+                return;
+            }
+
+            let matchCount = 0;
+
+            tableRows.forEach(row => {
+                const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
+                if (!plateInTable) return;
+
+                for (const line of extraLines) {
+                    if (line.includes(plateInTable)) {
+                        const newDateTime = extractDateTime(line);
+                        const newStation = extractStationCode(line);
+
+                        if (newDateTime) {
+                            row.querySelector('.col-dateTime').textContent = newDateTime;
+                            const parts = newDateTime.split(' ')[0].split(/[\/\-]/);
+                            const monthIdx = parseInt(parts[1]) - 1;
+                            if (monthIdx >= 0 && monthIdx < 12) {
+                                row.querySelector('.col-month').textContent = monthNames[monthIdx];
+                            }
+                        }
+                        
+                        if (newStation) {
+                            row.querySelector('.col-station').textContent = newStation;
+                        }
+
+                        matchCount++;
+                        break;
+                    }
+                }
+            });
+
+            showToast(`ผสานข้อมูลสำเร็จ ${matchCount} รายการ`, 'success');
+        }
+
+        function parseRow(text) {
+            const trimmedText = text.replace(/"/g, '').replace(/\s+/g, ' ').trim();
+            const words = trimmedText.split(' ');
+            
+            const filteredWords = words.filter(word => !word.includes('(') && !word.includes(')'));
+            
+            let lastPlate = "";
+            if (filteredWords.length >= 3) {
+                lastPlate = filteredWords.slice(-3).join(" ");
+            } else {
+                lastPlate = filteredWords.join(" ");
+            }
+
+            const dateTime = extractDateTime(trimmedText);
+            let monthText = "";
+            let dateTimeEndIndex = -1;
+
+            if (dateTime) {
+                dateTimeEndIndex = trimmedText.indexOf(dateTime) + dateTime.length;
+                const datePart = dateTime.split(' ')[0];
+                const parts = datePart.split(/[\/\-]/);
+                const monthIndex = parseInt(parts[1]) - 1;
+                if (monthIndex >= 0 && monthIndex < 12) {
+                    monthText = monthNames[monthIndex];
+                }
+            }
+
+            const station = extractStationCode(trimmedText) || "";
+            let stationRawName = "";
+            if (trimmedText.includes("ทับช้าง 1")) stationRawName = "ทับช้าง 1";
+            else if (trimmedText.includes("ทับช้าง 2")) stationRawName = "ทับช้าง 2";
+            else if (trimmedText.includes("ธัญบุรี 1")) stationRawName = "ธัญบุรี 1";
+            else if (trimmedText.includes("ธัญบุรี 2")) stationRawName = "ธัญบุรี 2";
+
+            let firstPlate = "";
+            if (dateTimeEndIndex !== -1) {
+                let segment = trimmedText.substring(dateTimeEndIndex).trim();
+                if (stationRawName !== "") {
+                    const stationPatterns = ["ด่าน" + stationRawName, stationRawName];
+                    for (const pattern of stationPatterns) {
+                        const sIndex = segment.indexOf(pattern);
+                        if (sIndex !== -1) {
+                            segment = segment.substring(0, sIndex).trim();
+                            break;
+                        }
+                    }
+                }
+                firstPlate = segment;
+            } else {
+                if (words.length >= 3) {
+                    firstPlate = words.slice(0, 3).join(" ");
+                } else {
+                    firstPlate = words[0] || "";
+                }
+            }
+
+            return { firstPlate, lastPlate, station, dateTime: dateTime || "", monthText };
+        }
+
+        function clearAll() {
+            document.getElementById('inputData').value = '';
+            document.getElementById('extraData').value = '';
+            document.getElementById('tableBody').innerHTML = '';
+            document.getElementById('resultArea').classList.add('hidden');
+            showToast('ล้างข้อมูลเรียบร้อย', 'info');
+        }
+
+        function showToast(message, type = 'success') {
+            const colors = {
+                success: 'bg-emerald-600',
+                error: 'bg-red-600',
+                info: 'bg-slate-700'
+            };
+            const toast = document.createElement('div');
+            toast.textContent = message;
+            toast.className = `fixed bottom-6 right-6 ${colors[type]} text-white px-6 py-3 rounded-xl shadow-2xl z-50 animate-bounce`;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+
+        function copyTableDataOnly() {
+            const tableBody = document.getElementById('tableBody');
+            if (tableBody.rows.length === 0) return;
+
+            // Clone table body to replace selects with text for copying
+            const clone = tableBody.cloneNode(true);
+            const rows = clone.querySelectorAll('tr');
+            
+            rows.forEach(row => {
+                const selects = row.querySelectorAll('select');
+                selects.forEach(select => {
+                    const textNode = document.createTextNode(select.value);
+                    select.parentNode.replaceChild(textNode, select);
+                });
+            });
+
+            // Create temporary container for the clone to copy from
+            const tempDiv = document.createElement('div');
+            tempDiv.style.position = 'absolute';
+            tempDiv.style.left = '-9999px';
+            const tempTable = document.createElement('table');
+            tempTable.appendChild(clone);
+            tempDiv.appendChild(tempTable);
+            document.body.appendChild(tempDiv);
+
+            let range = document.createRange();
+            range.selectNode(tempTable);
+            window.getSelection().removeAllRanges();
+            window.getSelection().addRange(range);
+            
+            try {
+                document.execCommand('copy');
+                showToast('คัดลอกข้อมูลลงคลิปบอร์ดแล้ว');
+            } catch (err) {
+                console.error('คัดลอกไม่สำเร็จ', err);
+            }
+            window.getSelection().removeAllRanges();
+            document.body.removeChild(tempDiv);
+        }
+    </script>
+</body>
+</html>
