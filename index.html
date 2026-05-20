@@ -8,10 +8,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        /* บังคับขนาดตัวอักษรเริ่มต้นและรูปแบบตารางแนวนอน */
-        html {
-            font-size: 40px;
-        }
         body {
             font-family: 'Sarabun', sans-serif;
             background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
@@ -26,7 +22,7 @@
             overflow-x: auto;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            white-space: nowrap; /* บังคับให้เป็นแนวนอน */
+            white-space: nowrap; /* บังคับให้ตารางแสดงผลแบบแนวนอน */
         }
         table {
             border-collapse: collapse;
@@ -271,7 +267,6 @@
             });
         }
 
-        // ฟังก์ชันช่วยทำความสะอาดข้อมูลที่ถูกเรียกใช้ตอนกดปุ่มประมวลผลเท่านั้น (ลดอาการค้าง)
         function cleanTextData(elementId) {
             const el = document.getElementById(elementId);
             const rawValue = el.value;
@@ -284,7 +279,6 @@
                 if (cleaned) cleanedLines.push(cleaned);
             }
             
-            // อัปเดตข้อมูลที่ทำความสะอาดแล้วกลับไปที่ช่อง
             el.value = cleanedLines.join('\n');
             return cleanedLines;
         }
@@ -305,7 +299,6 @@
         }
 
         function processData() {
-            // ทำความสะอาดข้อความและปรับเว้นวรรคตอนที่กดปุ่มนี้เท่านั้น
             const rows = cleanTextData('inputData');
             if (rows.length === 0) return;
 
@@ -394,7 +387,6 @@
                 });
 
             } else {
-                // จัดการ Text เหมือนเดิมแต่แก้ให้ทำงานตอนกดปุ่ม
                 const availableLines = cleanTextData('extraData');
                 if (availableLines.length === 0) {
                     showToast('กรุณาอัปโหลดไฟล์ CSV หรือวางข้อมูลเพิ่มเติม', 'error');
