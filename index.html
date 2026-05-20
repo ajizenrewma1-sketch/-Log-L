@@ -3,10 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบแยกข้อมูลรายการผ่านทาง - Modern Version</title>
+    <title>ระบบแยกข้อมูลรายการผ่านทาง - Pro Version</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+        /* บังคับขนาดตัวอักษรเริ่มต้นและรูปแบบตารางแนวนอน */
+        html {
+            font-size: 40px;
+        }
         body {
             font-family: 'Sarabun', sans-serif;
             background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
@@ -21,6 +26,7 @@
             overflow-x: auto;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            white-space: nowrap; /* บังคับให้เป็นแนวนอน */
         }
         table {
             border-collapse: collapse;
@@ -101,29 +107,38 @@
                 </div>
                 <textarea 
                     id="inputData" 
-                    oninput="formatSpaces(this)"
-                    onblur="formatSpaces(this)"
                     class="w-full h-56 p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-slate-600"
                     placeholder="วางข้อมูลรายการหลักที่นี่..."
                 ></textarea>
-                <p class="mt-2 text-xs text-slate-400 italic">* ลบ " และปรับเว้นวรรคให้อัตโนมัติ</p>
+                <p class="mt-2 text-xs text-slate-400 italic">* ระบบจะลบ " และปรับเว้นวรรคให้อัตโนมัติเมื่อกดประมวลผล</p>
             </div>
 
             <div class="glass-card rounded-2xl shadow-xl p-6 transition-all hover:shadow-2xl">
+                <div class="mb-4 p-4 border border-dashed border-emerald-300 rounded-xl bg-emerald-50/50">
+                    <label class="block text-sm font-bold text-emerald-700 mb-2">อัพโหลดไฟล์ CSV (เลือกได้หลายไฟล์พร้อมกัน)</label>
+                    <input 
+                        type="file" 
+                        id="csvFileInput" 
+                        accept=".csv" 
+                        multiple 
+                        onchange="handleCsvUpload(event)"
+                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-100 file:text-emerald-700 hover:file:bg-emerald-200 cursor-pointer transition-all"
+                    >
+                    <div id="csvStatus" class="mt-3 text-xs font-medium text-emerald-600 hidden bg-white p-2 rounded-lg shadow-sm border border-emerald-100"></div>
+                </div>
+
                 <div class="flex items-center gap-2 mb-4">
                     <div class="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                    <label class="text-lg font-bold text-slate-700">ข้อมูลเพิ่มเติม</label>
+                    <label class="text-lg font-bold text-slate-700">ข้อมูลเพิ่มเติม (Text)</label>
                 </div>
                 <textarea 
                     id="extraData" 
-                    oninput="formatSpaces(this)"
-                    onblur="formatSpaces(this)"
-                    class="w-full h-56 p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-slate-600"
-                    placeholder="วางข้อมูลเพื่อใช้ค้นหาทะเบียน..."
+                    class="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-slate-600"
+                    placeholder="วางข้อมูลเพื่อใช้ค้นหาทะเบียน (กรณีไม่อัพโหลดไฟล์ Csv)..."
                 ></textarea>
                 <p class="mt-2 text-xs text-slate-400 italic">* ใช้ผสานวันเวลาและด่านตามเลขทะเบียน</p>
             </div>
@@ -208,20 +223,70 @@
             <option value="ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ">ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ</option>
         `;
 
-        function formatSpaces(element) {
-            const lines = element.value.split('\n');
-            const formattedLines = lines.map(line => {
-                return line.replace(/"/g, '').replace(/\s+/g, ' ').trim();
+        let globalCsvData = [];
+
+        function handleCsvUpload(event) {
+            const files = event.target.files;
+            if (files.length === 0) return;
+
+            let allParsedData = [];
+            let filesProcessed = 0;
+
+            Array.from(files).forEach(file => {
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        allParsedData = allParsedData.concat(results.data);
+                        filesProcessed++;
+
+                        if (filesProcessed === files.length) {
+                            globalCsvData = [];
+                            allParsedData.forEach(row => {
+                                if (row['สถานะ'] && String(row['สถานะ']).trim() === 'ใช้งาน') {
+                                    const plate = (row['ป้ายทะเบียน'] || '').trim();
+                                    const province = (row['จังหวัด'] || '').trim();
+                                    const combinedPlate = plate + (province ? ' ' + province : '');
+
+                                    globalCsvData.push({
+                                        'ช่วงเวลาผ่านทาง': row['ช่วงเวลาผ่านทาง'],
+                                        'ทะเบียนรวม': combinedPlate,
+                                        'ชื่อด่าน': row['ชื่อด่าน'],
+                                        'สถานะ': row['สถานะ']
+                                    });
+                                }
+                            });
+                            
+                            const statusEl = document.getElementById('csvStatus');
+                            statusEl.classList.remove('hidden');
+                            statusEl.innerHTML = `✅ <b>เตรียมข้อมูล CSV สำเร็จ:</b> พร้อมผสาน <b>${globalCsvData.length}</b> รายการ`;
+                            showToast(`โหลดและเตรียมข้อมูล CSV สำเร็จ ${globalCsvData.length} รายการ`, 'success');
+                        }
+                    },
+                    error: function(err) {
+                        console.error("Error parsing CSV:", err);
+                        showToast("เกิดข้อผิดพลาดในการอ่านไฟล์ CSV", "error");
+                    }
+                });
             });
-            
-            const start = element.selectionStart;
-            const oldValue = element.value;
-            const newValue = formattedLines.join('\n');
-            
-            if (oldValue !== newValue) {
-                element.value = newValue;
-                element.selectionStart = element.selectionEnd = start;
+        }
+
+        // ฟังก์ชันช่วยทำความสะอาดข้อมูลที่ถูกเรียกใช้ตอนกดปุ่มประมวลผลเท่านั้น (ลดอาการค้าง)
+        function cleanTextData(elementId) {
+            const el = document.getElementById(elementId);
+            const rawValue = el.value;
+            if (!rawValue.trim()) return [];
+
+            const lines = rawValue.split('\n');
+            const cleanedLines = [];
+            for (let i = 0; i < lines.length; i++) {
+                let cleaned = lines[i].replace(/"/g, '').replace(/\s+/g, ' ').trim();
+                if (cleaned) cleanedLines.push(cleaned);
             }
+            
+            // อัปเดตข้อมูลที่ทำความสะอาดแล้วกลับไปที่ช่อง
+            el.value = cleanedLines.join('\n');
+            return cleanedLines;
         }
 
         function extractDateTime(text) {
@@ -231,6 +296,7 @@
         }
 
         function extractStationCode(text) {
+            if (!text) return null;
             if (text.includes("ธัญบุรี 1")) return "TY1";
             if (text.includes("ธัญบุรี 2")) return "TY2";
             if (text.includes("ทับช้าง 1")) return "TC1";
@@ -239,10 +305,10 @@
         }
 
         function processData() {
-            const input = document.getElementById('inputData').value;
-            if (!input.trim()) return;
+            // ทำความสะอาดข้อความและปรับเว้นวรรคตอนที่กดปุ่มนี้เท่านั้น
+            const rows = cleanTextData('inputData');
+            if (rows.length === 0) return;
 
-            const rows = input.split('\n').filter(row => row.trim() !== '');
             const tableBody = document.getElementById('tableBody');
             tableBody.innerHTML = '';
 
@@ -279,10 +345,6 @@
         }
 
         function mergeExtraDataByPlate() {
-            const extraInput = document.getElementById('extraData').value;
-            if (!extraInput.trim()) return;
-
-            const extraLines = extraInput.split('\n').filter(line => line.trim() !== '');
             const tableRows = document.querySelectorAll('#tableBody tr');
 
             if (tableRows.length === 0) {
@@ -292,12 +354,61 @@
 
             let matchCount = 0;
 
-            tableRows.forEach(row => {
-                const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
-                if (!plateInTable) return;
+            if (globalCsvData && globalCsvData.length > 0) {
+                let availableCsvRows = [...globalCsvData];
 
-                for (const line of extraLines) {
-                    if (line.includes(plateInTable)) {
+                tableRows.forEach(row => {
+                    const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
+                    if (!plateInTable) return;
+
+                    const matchIndex = availableCsvRows.findIndex(csvRow => {
+                        const targetPlate = String(csvRow['ทะเบียนรวม'] || '').replace(/\s+/g, '');
+                        const searchPlate = plateInTable.replace(/\s+/g, '');
+                        return targetPlate.includes(searchPlate) || searchPlate.includes(targetPlate);
+                    });
+
+                    if (matchIndex !== -1) {
+                        const matchedRow = availableCsvRows[matchIndex];
+                        const newDateTimeRaw = matchedRow['ช่วงเวลาผ่านทาง'];
+                        const newStationRaw = matchedRow['ชื่อด่าน'];
+
+                        if (newDateTimeRaw) {
+                            const parsedDT = extractDateTime(newDateTimeRaw) || newDateTimeRaw;
+                            row.querySelector('.col-dateTime').textContent = parsedDT;
+                            
+                            const parts = parsedDT.split(' ')[0].split(/[\/\-]/);
+                            const monthIdx = parseInt(parts[1]) - 1;
+                            if (monthIdx >= 0 && monthIdx < 12) {
+                                row.querySelector('.col-month').textContent = monthNames[monthIdx];
+                            }
+                        }
+                        
+                        if (newStationRaw) {
+                            const parsedStation = extractStationCode(newStationRaw) || newStationRaw;
+                            row.querySelector('.col-station').textContent = parsedStation;
+                        }
+
+                        availableCsvRows.splice(matchIndex, 1);
+                        matchCount++;
+                    }
+                });
+
+            } else {
+                // จัดการ Text เหมือนเดิมแต่แก้ให้ทำงานตอนกดปุ่ม
+                const availableLines = cleanTextData('extraData');
+                if (availableLines.length === 0) {
+                    showToast('กรุณาอัปโหลดไฟล์ CSV หรือวางข้อมูลเพิ่มเติม', 'error');
+                    return;
+                }
+
+                tableRows.forEach(row => {
+                    const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
+                    if (!plateInTable) return;
+
+                    const matchIndex = availableLines.findIndex(line => line.includes(plateInTable));
+
+                    if (matchIndex !== -1) {
+                        const line = availableLines[matchIndex];
                         const newDateTime = extractDateTime(line);
                         const newStation = extractStationCode(line);
 
@@ -314,17 +425,17 @@
                             row.querySelector('.col-station').textContent = newStation;
                         }
 
+                        availableLines.splice(matchIndex, 1);
                         matchCount++;
-                        break;
                     }
-                }
-            });
+                });
+            }
 
             showToast(`ผสานข้อมูลสำเร็จ ${matchCount} รายการ`, 'success');
         }
 
         function parseRow(text) {
-            const trimmedText = text.replace(/"/g, '').replace(/\s+/g, ' ').trim();
+            const trimmedText = text;
             const words = trimmedText.split(' ');
             
             const filteredWords = words.filter(word => !word.includes('(') && !word.includes(')'));
@@ -387,6 +498,11 @@
             document.getElementById('extraData').value = '';
             document.getElementById('tableBody').innerHTML = '';
             document.getElementById('resultArea').classList.add('hidden');
+            
+            document.getElementById('csvFileInput').value = '';
+            document.getElementById('csvStatus').classList.add('hidden');
+            globalCsvData = [];
+
             showToast('ล้างข้อมูลเรียบร้อย', 'info');
         }
 
@@ -407,7 +523,6 @@
             const tableBody = document.getElementById('tableBody');
             if (tableBody.rows.length === 0) return;
 
-            // Clone table body to replace selects with text for copying
             const clone = tableBody.cloneNode(true);
             const rows = clone.querySelectorAll('tr');
             
@@ -419,7 +534,6 @@
                 });
             });
 
-            // Create temporary container for the clone to copy from
             const tempDiv = document.createElement('div');
             tempDiv.style.position = 'absolute';
             tempDiv.style.left = '-9999px';
