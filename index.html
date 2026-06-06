@@ -355,10 +355,9 @@
                     if (!plateInTable) return;
 
                     const matchIndex = availableCsvRows.findIndex(csvRow => {
-                        const targetPlate = String(csvRow['ทะเบียนรวม'] || '').replace(/\s+/g, '');
-                        const searchPlate = plateInTable.replace(/\s+/g, '');
-                        return targetPlate.includes(searchPlate) || searchPlate.includes(targetPlate);
-                    });
+    const targetPlate = String(csvRow['ทะเบียนรวม'] || '').trim();
+    return targetPlate.includes(plateInTable);
+});
 
                     if (matchIndex !== -1) {
                         const matchedRow = availableCsvRows[matchIndex];
