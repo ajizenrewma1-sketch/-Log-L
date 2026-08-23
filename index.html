@@ -6,6 +6,7 @@
     <title>ระบบแยกข้อมูลรายการผ่านทาง - Pro Version</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -22,7 +23,7 @@
             overflow-x: auto;
             border-radius: 12px;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-            white-space: nowrap; /* บังคับให้ตารางแสดงผลแบบแนวนอน */
+            white-space: nowrap;
         }
         table {
             border-collapse: collapse;
@@ -110,6 +111,19 @@
             </div>
 
             <div class="glass-card rounded-2xl shadow-xl p-6 transition-all hover:shadow-2xl">
+                <div class="mb-4 p-4 border border-dashed border-blue-300 rounded-xl bg-blue-50/50">
+                    <label class="block text-sm font-bold text-blue-700 mb-2">อัพโหลดไฟล์ Excel (.xlsx, .xls) (เลือกได้หลายไฟล์)</label>
+                    <input 
+                        type="file" 
+                        id="excelFileInput" 
+                        accept=".xlsx, .xls" 
+                        multiple 
+                        onchange="handleExcelUpload(event)"
+                        class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200 cursor-pointer transition-all"
+                    >
+                    <div id="excelStatus" class="mt-3 text-xs font-medium text-blue-600 hidden bg-white p-2 rounded-lg shadow-sm border border-blue-100"></div>
+                </div>
+
                 <div class="mb-4 p-4 border border-dashed border-emerald-300 rounded-xl bg-emerald-50/50">
                     <label class="block text-sm font-bold text-emerald-700 mb-2">อัพโหลดไฟล์ CSV (เลือกได้หลายไฟล์พร้อมกัน)</label>
                     <input 
@@ -134,7 +148,7 @@
                 <textarea 
                     id="extraData" 
                     class="w-full h-28 p-4 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-slate-600"
-                    placeholder="วางข้อมูลเพื่อใช้ค้นหาทะเบียน (กรณีไม่อัพโหลดไฟล์ Csv)..."
+                    placeholder="วางข้อมูลเพื่อใช้ค้นหาทะเบียน (กรณีไม่อัพโหลดไฟล์ Csv/Excel)..."
                 ></textarea>
                 <p class="mt-2 text-xs text-slate-400 italic">* ใช้ผสานวันเวลาและด่านตามเลขทะเบียน</p>
             </div>
@@ -220,6 +234,59 @@
         `;
 
         let globalCsvData = [];
+        let globalExcelData = [];
+
+        function handleExcelUpload(event) {
+            const files = event.target.files;
+            if (files.length === 0) return;
+
+            let allParsedData = [];
+            let filesProcessed = 0;
+
+            Array.from(files).forEach(file => {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = new Uint8Array(e.target.result);
+                        const workbook = XLSX.read(data, { type: 'array' });
+                        const firstSheetName = workbook.SheetNames[0];
+                        const worksheet = workbook.Sheets[firstSheetName];
+                        const jsonRows = XLSX.utils.sheet_to_json(worksheet);
+
+                        allParsedData = allParsedData.concat(jsonRows);
+                        filesProcessed++;
+
+                        if (filesProcessed === files.length) {
+                            globalExcelData = [];
+                            allParsedData.forEach(row => {
+                                const status = row['สถานะ'] ? String(row['สถานะ']).trim() : 'ใช้งาน';
+                                if (status === 'ใช้งาน') {
+                                    const plate = (row['ป้ายทะเบียน'] || row['ทะเบียนรถ'] || row['ทะเบียน'] || '').trim();
+                                    const province = (row['จังหวัด'] || '').trim();
+                                    const combinedPlate = plate + (province ? ' ' + province : '');
+
+                                    globalExcelData.push({
+                                        'วันเวลาที่ผ่านทางขาเข้า': row['วันเวลาที่ผ่านทางขาเข้า'] || '',
+                                        'ทะเบียนรวม': combinedPlate || plate,
+                                        'ด่านขาเข้า': row['ด่านขาเข้า'] || '',
+                                        'สถานะ': status
+                                    });
+                                }
+                            });
+                            
+                            const statusEl = document.getElementById('excelStatus');
+                            statusEl.classList.remove('hidden');
+                            statusEl.innerHTML = `✅ <b>เตรียมข้อมูล Excel สำเร็จ:</b> พร้อมผสาน <b>${globalExcelData.length}</b> รายการ`;
+                            showToast(`โหลดและเตรียมข้อมูล Excel สำเร็จ ${globalExcelData.length} รายการ`, 'success');
+                        }
+                    } catch (err) {
+                        console.error("Error reading Excel:", err);
+                        showToast("เกิดข้อผิดพลาดในการอ่านไฟล์ Excel", "error");
+                    }
+                };
+                reader.readAsArrayBuffer(file);
+            });
+        }
 
         function handleCsvUpload(event) {
             const files = event.target.files;
@@ -347,7 +414,45 @@
 
             let matchCount = 0;
 
-            if (globalCsvData && globalCsvData.length > 0) {
+            if (globalExcelData && globalExcelData.length > 0) {
+                let availableExcelRows = [...globalExcelData];
+
+                tableRows.forEach(row => {
+                    const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
+                    if (!plateInTable) return;
+
+                    const matchIndex = availableExcelRows.findIndex(excelRow => {
+                        const targetPlate = String(excelRow['ทะเบียนรวม'] || '').trim();
+                        return targetPlate.includes(plateInTable);
+                    });
+
+                    if (matchIndex !== -1) {
+                        const matchedRow = availableExcelRows[matchIndex];
+                        const newDateTimeRaw = matchedRow['วันเวลาที่ผ่านทางขาเข้า'];
+                        const newStationRaw = matchedRow['ด่านขาเข้า'];
+
+                        if (newDateTimeRaw) {
+                            const parsedDT = extractDateTime(String(newDateTimeRaw)) || String(newDateTimeRaw);
+                            row.querySelector('.col-dateTime').textContent = parsedDT;
+                            
+                            const parts = parsedDT.split(' ')[0].split(/[\/\-]/);
+                            const monthIdx = parseInt(parts[1]) - 1;
+                            if (monthIdx >= 0 && monthIdx < 12) {
+                                row.querySelector('.col-month').textContent = monthNames[monthIdx];
+                            }
+                        }
+                        
+                        if (newStationRaw) {
+                            const parsedStation = extractStationCode(String(newStationRaw)) || String(newStationRaw);
+                            row.querySelector('.col-station').textContent = parsedStation;
+                        }
+
+                        availableExcelRows.splice(matchIndex, 1);
+                        matchCount++;
+                    }
+                });
+
+            } else if (globalCsvData && globalCsvData.length > 0) {
                 let availableCsvRows = [...globalCsvData];
 
                 tableRows.forEach(row => {
@@ -355,9 +460,9 @@
                     if (!plateInTable) return;
 
                     const matchIndex = availableCsvRows.findIndex(csvRow => {
-    const targetPlate = String(csvRow['ทะเบียนรวม'] || '').trim();
-    return targetPlate.includes(plateInTable);
-});
+                        const targetPlate = String(csvRow['ทะเบียนรวม'] || '').trim();
+                        return targetPlate.includes(plateInTable);
+                    });
 
                     if (matchIndex !== -1) {
                         const matchedRow = availableCsvRows[matchIndex];
@@ -388,7 +493,7 @@
             } else {
                 const availableLines = cleanTextData('extraData');
                 if (availableLines.length === 0) {
-                    showToast('กรุณาอัปโหลดไฟล์ CSV หรือวางข้อมูลเพิ่มเติม', 'error');
+                    showToast('กรุณาอัปโหลดไฟล์ Excel/CSV หรือวางข้อมูลเพิ่มเติม', 'error');
                     return;
                 }
 
@@ -490,6 +595,10 @@
             document.getElementById('tableBody').innerHTML = '';
             document.getElementById('resultArea').classList.add('hidden');
             
+            document.getElementById('excelFileInput').value = '';
+            document.getElementById('excelStatus').classList.add('hidden');
+            globalExcelData = [];
+
             document.getElementById('csvFileInput').value = '';
             document.getElementById('csvStatus').classList.add('hidden');
             globalCsvData = [];
