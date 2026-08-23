@@ -231,6 +231,8 @@
         const carTypeOptions = `
             <option value="ตรวจสอบรายการผ่านทาง">ตรวจสอบรายการผ่านทาง</option>
             <option value="ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ">ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ</option>
+            <option value="ตรวจสอบการผ่านทางที่ผิดกฎหมาย">ตรวจสอบการผ่านทางที่ผิดกฎหมาย</option>
+            <option value="ตรวจสอบการผ่านทางที่ได้รับการยกเว้น">ตรวจสอบการผ่านทางที่ได้รับการยกเว้น</option>
         `;
 
         let globalCsvData = [];
@@ -253,7 +255,12 @@
                         const worksheet = workbook.Sheets[firstSheetName];
                         const jsonRows = XLSX.utils.sheet_to_json(worksheet);
 
-                        allParsedData = allParsedData.concat(jsonRows);
+                        const mappedRows = jsonRows.map(r => {
+                            r.fileName = file.name;
+                            return r;
+                        });
+
+                        allParsedData = allParsedData.concat(mappedRows);
                         filesProcessed++;
 
                         if (filesProcessed === files.length) {
@@ -269,7 +276,10 @@
                                         'วันเวลาที่ผ่านทางขาเข้า': row['วันเวลาที่ผ่านทางขาเข้า'] || '',
                                         'ทะเบียนรวม': combinedPlate || plate,
                                         'ด่านขาเข้า': row['ด่านขาเข้า'] || '',
-                                        'สถานะ': status
+                                        'สถานะ': status,
+                                        'ประเภทรายการผ่านทาง': row['ประเภทรายการผ่านทาง'] || '',
+                                        'fileName': row.fileName,
+                                        '_used': false
                                     });
                                 }
                             });
@@ -300,7 +310,11 @@
                     header: true,
                     skipEmptyLines: true,
                     complete: function(results) {
-                        allParsedData = allParsedData.concat(results.data);
+                        const mappedRows = results.data.map(r => {
+                            r.fileName = file.name;
+                            return r;
+                        });
+                        allParsedData = allParsedData.concat(mappedRows);
                         filesProcessed++;
 
                         if (filesProcessed === files.length) {
@@ -315,7 +329,10 @@
                                         'ช่วงเวลาผ่านทาง': row['ช่วงเวลาผ่านทาง'],
                                         'ทะเบียนรวม': combinedPlate,
                                         'ชื่อด่าน': row['ชื่อด่าน'],
-                                        'สถานะ': row['สถานะ']
+                                        'สถานะ': row['สถานะ'],
+                                        'ประเภทรายการผ่านทาง': row['ประเภทรายการผ่านทาง'] || '',
+                                        'fileName': row.fileName,
+                                        '_used': false
                                     });
                                 }
                             });
@@ -374,160 +391,236 @@
 
             rows.forEach(row => {
                 const data = parseRow(row);
-                const tr = document.createElement('tr');
-                
-                tr.innerHTML = `
-                    <td class="font-bold text-blue-700">${data.lastPlate}</td>
-                    <td>
-                        <select class="car-type-txn-select">
-                            ${carTypeOptions}
-                        </select>
-                    </td>
-                    <td class="col-station font-semibold">${data.station}</td>
-                    <td class="col-dateTime text-slate-500">${data.dateTime}</td>
-                    <td class="col-month text-slate-400">${data.monthText}</td>
-                    <td class="col-firstPlate font-medium">${data.firstPlate}</td>
-                    <td>
-                        <select class="car-type-select">
-                            ${carTypeOptions}
-                        </select>
-                    </td>
-                    <td></td>
-                    <td class="text-slate-600">เจ้าหน้าที่อนุมัติรายการผ่านทางผิดพลาด</td>
-                    <td class="text-slate-600">สร้างTXN+ยิงpostman</td>
-                    <td></td>
-                    <td class="text-xs text-slate-400">บี Asst.</td>
-                `;
-                tableBody.appendChild(tr);
+                addTableRow({
+                    lastPlate: data.lastPlate,
+                    station: data.station,
+                    dateTime: data.dateTime,
+                    monthText: data.monthText,
+                    firstPlate: data.firstPlate,
+                    carType: "ตรวจสอบรายการผ่านทาง"
+                });
             });
 
             document.getElementById('resultArea').classList.remove('hidden');
         }
 
-        function mergeExtraDataByPlate() {
-            const tableRows = document.querySelectorAll('#tableBody tr');
+        function getCarType(fileName, docCarType) {
+            const fName = (fileName || '').toLowerCase();
+            const cType = (docCarType || '').trim();
 
-            if (tableRows.length === 0) {
-                showToast('กรุณาประมวลผลข้อมูลหลักก่อน', 'error');
+            if (cType === "รถป้ายแดง" || cType === "รถหน่วยงานราชการ" || cType === "รถองค์กร") {
+                return "ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ";
+            } else if (cType === "รถป้ายปกติ") {
+                return "ตรวจสอบรายการผ่านทาง";
+            } else if (cType === "รถผิดกฏหมาย" || cType === "รถผิดกฎหมาย") { 
+                return "ตรวจสอบการผ่านทางที่ผิดกฎหมาย";
+            } else if (cType === "รถยกเว้น") {
+                return "ตรวจสอบการผ่านทางที่ได้รับการยกเว้น";
+            }
+            
+            if (fName.includes("transaction_normal_")) {
+                return "ตรวจสอบรายการผ่านทาง";
+            } else if (fName.includes("transaction_illegal_")) {
+                return "ตรวจสอบการผ่านทางที่ผิดกฎหมาย";
+            } else if (fName.includes("transaction_noncharge_")) {
+                return "ตรวจสอบการผ่านทางที่ได้รับการยกเว้น";
+            } else if (fName.includes("transaction_special_")) {
+                return "ตรวจสอบรายการผ่านทางอนุมัติผ่านทางพิเศษ";
+            }
+            
+            return null;
+        }
+
+        function addTableRow(data) {
+            const tableBody = document.getElementById('tableBody');
+            const tr = document.createElement('tr');
+            
+            tr.innerHTML = `
+                <td class="font-bold text-blue-700">${data.lastPlate}</td>
+                <td>
+                    <select class="car-type-txn-select">
+                        ${carTypeOptions}
+                    </select>
+                </td>
+                <td class="col-station font-semibold">${data.station}</td>
+                <td class="col-dateTime text-slate-500">${data.dateTime}</td>
+                <td class="col-month text-slate-400">${data.monthText}</td>
+                <td class="col-firstPlate font-medium">${data.firstPlate}</td>
+                <td>
+                    <select class="car-type-select">
+                        ${carTypeOptions}
+                    </select>
+                </td>
+                <td></td>
+                <td class="text-slate-600">เจ้าหน้าที่อนุมัติรายการผ่านทางผิดพลาด</td>
+                <td class="text-slate-600">สร้างTXN+ยิงpostman</td>
+                <td></td>
+                <td class="text-xs text-slate-400">บี Asst.</td>
+            `;
+
+            if (data.carType) {
+                const selectEl = tr.querySelector('.car-type-select');
+                if (selectEl) selectEl.value = data.carType;
+            }
+
+            tableBody.appendChild(tr);
+        }
+
+        function mergeExtraDataByPlate() {
+            const inputLines = cleanTextData('inputData');
+
+            if (inputLines.length === 0) {
+                showToast('กรุณากรอกข้อมูลหลักในช่อง "ข้อมูลหลัก" ก่อน', 'error');
                 return;
             }
 
-            let matchCount = 0;
+            const tableBody = document.getElementById('tableBody');
+            tableBody.innerHTML = '';
+
+            let totalRowsCreated = 0;
 
             if (globalExcelData && globalExcelData.length > 0) {
-                let availableExcelRows = [...globalExcelData];
+                globalExcelData.forEach(r => r._used = false);
 
-                tableRows.forEach(row => {
-                    const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
-                    if (!plateInTable) return;
+                inputLines.forEach(line => {
+                    const parsed = parseRow(line);
+                    const plateToSearch = parsed.firstPlate.trim();
 
-                    const matchIndex = availableExcelRows.findIndex(excelRow => {
+                    const matchedExcelRow = globalExcelData.find(excelRow => {
+                        if (excelRow._used) return false;
                         const targetPlate = String(excelRow['ทะเบียนรวม'] || '').trim();
-                        return targetPlate.includes(plateInTable);
+                        return plateToSearch && targetPlate === plateToSearch;
                     });
 
-                    if (matchIndex !== -1) {
-                        const matchedRow = availableExcelRows[matchIndex];
-                        const newDateTimeRaw = matchedRow['วันเวลาที่ผ่านทางขาเข้า'];
-                        const newStationRaw = matchedRow['ด่านขาเข้า'];
+                    let station = parsed.station;
+                    let dateTime = parsed.dateTime;
+                    let monthText = parsed.monthText;
+                    let carType = "ตรวจสอบรายการผ่านทาง";
 
-                        if (newDateTimeRaw) {
-                            const parsedDT = extractDateTime(String(newDateTimeRaw)) || String(newDateTimeRaw);
-                            row.querySelector('.col-dateTime').textContent = parsedDT;
-                            
-                            const parts = parsedDT.split(' ')[0].split(/[\/\-]/);
+                    if (matchedExcelRow) {
+                        matchedExcelRow._used = true;
+                        const rawDT = matchedExcelRow['วันเวลาที่ผ่านทางขาเข้า'] || '';
+                        dateTime = extractDateTime(String(rawDT)) || String(rawDT);
+                        
+                        if (dateTime) {
+                            const datePart = dateTime.split(' ')[0];
+                            const parts = datePart.split(/[\/\-]/);
                             const monthIdx = parseInt(parts[1]) - 1;
                             if (monthIdx >= 0 && monthIdx < 12) {
-                                row.querySelector('.col-month').textContent = monthNames[monthIdx];
+                                monthText = monthNames[monthIdx];
                             }
                         }
-                        
-                        if (newStationRaw) {
-                            const parsedStation = extractStationCode(String(newStationRaw)) || String(newStationRaw);
-                            row.querySelector('.col-station').textContent = parsedStation;
-                        }
 
-                        availableExcelRows.splice(matchIndex, 1);
-                        matchCount++;
+                        const rawStation = matchedExcelRow['ด่านขาเข้า'] || '';
+                        station = extractStationCode(String(rawStation)) || String(rawStation);
+                        carType = getCarType(matchedExcelRow['fileName'], matchedExcelRow['ประเภทรายการผ่านทาง']) || "ตรวจสอบรายการผ่านทาง";
                     }
+
+                    addTableRow({
+                        lastPlate: parsed.lastPlate,
+                        station: station,
+                        dateTime: dateTime,
+                        monthText: monthText,
+                        firstPlate: parsed.firstPlate,
+                        carType: carType
+                    });
+                    totalRowsCreated++;
                 });
 
             } else if (globalCsvData && globalCsvData.length > 0) {
-                let availableCsvRows = [...globalCsvData];
+                globalCsvData.forEach(r => r._used = false);
 
-                tableRows.forEach(row => {
-                    const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
-                    if (!plateInTable) return;
+                inputLines.forEach(line => {
+                    const parsed = parseRow(line);
+                    const plateToSearch = parsed.firstPlate.trim();
 
-                    const matchIndex = availableCsvRows.findIndex(csvRow => {
+                    const matchedCsvRow = globalCsvData.find(csvRow => {
+                        if (csvRow._used) return false;
                         const targetPlate = String(csvRow['ทะเบียนรวม'] || '').trim();
-                        return targetPlate.includes(plateInTable);
+                        return plateToSearch && targetPlate === plateToSearch;
                     });
 
-                    if (matchIndex !== -1) {
-                        const matchedRow = availableCsvRows[matchIndex];
-                        const newDateTimeRaw = matchedRow['ช่วงเวลาผ่านทาง'];
-                        const newStationRaw = matchedRow['ชื่อด่าน'];
+                    let station = parsed.station;
+                    let dateTime = parsed.dateTime;
+                    let monthText = parsed.monthText;
+                    let carType = "ตรวจสอบรายการผ่านทาง";
 
-                        if (newDateTimeRaw) {
-                            const parsedDT = extractDateTime(newDateTimeRaw) || newDateTimeRaw;
-                            row.querySelector('.col-dateTime').textContent = parsedDT;
-                            
-                            const parts = parsedDT.split(' ')[0].split(/[\/\-]/);
+                    if (matchedCsvRow) {
+                        matchedCsvRow._used = true;
+                        const rawDT = matchedCsvRow['ช่วงเวลาผ่านทาง'] || '';
+                        dateTime = extractDateTime(String(rawDT)) || String(rawDT);
+
+                        if (dateTime) {
+                            const datePart = dateTime.split(' ')[0];
+                            const parts = datePart.split(/[\/\-]/);
                             const monthIdx = parseInt(parts[1]) - 1;
                             if (monthIdx >= 0 && monthIdx < 12) {
-                                row.querySelector('.col-month').textContent = monthNames[monthIdx];
+                                monthText = monthNames[monthIdx];
                             }
                         }
-                        
-                        if (newStationRaw) {
-                            const parsedStation = extractStationCode(newStationRaw) || newStationRaw;
-                            row.querySelector('.col-station').textContent = parsedStation;
-                        }
 
-                        availableCsvRows.splice(matchIndex, 1);
-                        matchCount++;
+                        const rawStation = matchedCsvRow['ชื่อด่าน'] || '';
+                        station = extractStationCode(String(rawStation)) || String(rawStation);
+                        carType = getCarType(matchedCsvRow['fileName'], matchedCsvRow['ประเภทรายการผ่านทาง']) || "ตรวจสอบรายการผ่านทาง";
                     }
+
+                    addTableRow({
+                        lastPlate: parsed.lastPlate,
+                        station: station,
+                        dateTime: dateTime,
+                        monthText: monthText,
+                        firstPlate: parsed.firstPlate,
+                        carType: carType
+                    });
+                    totalRowsCreated++;
                 });
 
             } else {
                 const availableLines = cleanTextData('extraData');
-                if (availableLines.length === 0) {
-                    showToast('กรุณาอัปโหลดไฟล์ Excel/CSV หรือวางข้อมูลเพิ่มเติม', 'error');
-                    return;
-                }
 
-                tableRows.forEach(row => {
-                    const plateInTable = row.querySelector('.col-firstPlate').textContent.trim();
-                    if (!plateInTable) return;
+                inputLines.forEach(line => {
+                    const parsed = parseRow(line);
+                    const plateToSearch = parsed.firstPlate.trim();
 
-                    const matchIndex = availableLines.findIndex(line => line.includes(plateInTable));
+                    let station = parsed.station;
+                    let dateTime = parsed.dateTime;
+                    let monthText = parsed.monthText;
 
-                    if (matchIndex !== -1) {
-                        const line = availableLines[matchIndex];
-                        const newDateTime = extractDateTime(line);
-                        const newStation = extractStationCode(line);
+                    let matchedExtra = "";
+                    for (let i = 0; i < availableLines.length; i++) {
+                        if (plateToSearch && availableLines[i].includes(plateToSearch)) {
+                            matchedExtra = availableLines[i];
+                            break;
+                        }
+                    }
 
-                        if (newDateTime) {
-                            row.querySelector('.col-dateTime').textContent = newDateTime;
-                            const parts = newDateTime.split(' ')[0].split(/[\/\-]/);
+                    if (matchedExtra) {
+                        dateTime = extractDateTime(matchedExtra) || dateTime;
+                        station = extractStationCode(matchedExtra) || station;
+                        if (dateTime) {
+                            const datePart = dateTime.split(' ')[0];
+                            const parts = datePart.split(/[\/\-]/);
                             const monthIdx = parseInt(parts[1]) - 1;
                             if (monthIdx >= 0 && monthIdx < 12) {
-                                row.querySelector('.col-month').textContent = monthNames[monthIdx];
+                                monthText = monthNames[monthIdx];
                             }
                         }
-                        
-                        if (newStation) {
-                            row.querySelector('.col-station').textContent = newStation;
-                        }
-
-                        availableLines.splice(matchIndex, 1);
-                        matchCount++;
                     }
+
+                    addTableRow({
+                        lastPlate: parsed.lastPlate,
+                        station: station,
+                        dateTime: dateTime,
+                        monthText: monthText,
+                        firstPlate: parsed.firstPlate,
+                        carType: "ตรวจสอบรายการผ่านทาง"
+                    });
+                    totalRowsCreated++;
                 });
             }
 
-            showToast(`ผสานข้อมูลสำเร็จ ${matchCount} รายการ`, 'success');
+            document.getElementById('resultArea').classList.remove('hidden');
+            showToast(`ผสานข้อมูลสำเร็จ ${totalRowsCreated} แถว (ตรงกับข้อมูลหลัก)`, 'success');
         }
 
         function parseRow(text) {
@@ -624,13 +717,17 @@
             if (tableBody.rows.length === 0) return;
 
             const clone = tableBody.cloneNode(true);
-            const rows = clone.querySelectorAll('tr');
+            const originalRows = tableBody.querySelectorAll('tr');
+            const clonedRows = clone.querySelectorAll('tr');
             
-            rows.forEach(row => {
-                const selects = row.querySelectorAll('select');
-                selects.forEach(select => {
-                    const textNode = document.createTextNode(select.value);
-                    select.parentNode.replaceChild(textNode, select);
+            originalRows.forEach((origRow, index) => {
+                const origSelects = origRow.querySelectorAll('select');
+                const cloneSelects = clonedRows[index].querySelectorAll('select');
+                
+                origSelects.forEach((origSelect, sIndex) => {
+                    const val = origSelect.value;
+                    const textNode = document.createTextNode(val);
+                    cloneSelects[sIndex].parentNode.replaceChild(textNode, cloneSelects[sIndex]);
                 });
             });
 
